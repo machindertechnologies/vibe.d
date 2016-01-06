@@ -118,6 +118,13 @@ interface EventDriver {
 	*/
 	TCPListener listenTCP(ushort port, void delegate(TCPConnection conn) conn_callback, string bind_address, TCPListenOptions options);
 
+    version (VibeLibeventDriver)
+    {
+
+	TCPListener listenTCP(int fd, ushort port, void delegate(TCPConnection conn) conn_callback, string bind_address, TCPListenOptions options);
+
+    }
+
 	/** Creates a new UDP socket and sets the specified address/port as the destination for packets.
 
 		If a bind port is specified, the socket will be able to receive UDP packets on that port.

@@ -73,6 +73,16 @@ TCPListener listenTCP(ushort port, void delegate(TCPConnection stream) connectio
 	return getEventDriver().listenTCP(port, connection_callback, address, options);
 }
 
+version (VibeLibeventDriver)
+{
+
+TCPListener listenTCP(int fd, ushort port, void delegate(TCPConnection stream) connection_callback, string address, TCPListenOptions options = TCPListenOptions.defaults)
+{
+	return getEventDriver().listenTCP(fd, port, connection_callback, address, options);
+}
+
+}
+
 /**
 	Starts listening on the specified port.
 
@@ -86,6 +96,16 @@ TCPListener[] listenTCP_s(ushort port, void function(TCPConnection stream) conne
 TCPListener listenTCP_s(ushort port, void function(TCPConnection stream) connection_callback, string address, TCPListenOptions options = TCPListenOptions.defaults)
 {
 	return listenTCP(port, toDelegate(connection_callback), address, options);
+}
+
+version (VibeLibeventDriver)
+{
+
+TCPListener listenTCP_s(int fd, ushort port, void function(TCPConnection stream) connection_callback, string address, TCPListenOptions options = TCPListenOptions.defaults)
+{
+	return listenTCP(fd, port, toDelegate(connection_callback), address, options);
+}
+
 }
 
 /**

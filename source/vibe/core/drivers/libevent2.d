@@ -334,37 +334,11 @@ final class Libevent2Driver : EventDriver {
 		return new Libevent2TCPConnection(cctx);
 	}
 
-	Libevent2TCPListener listenTCP(ushort port, void delegate(TCPConnection conn) connection_callback, string address, TCPListenOptions options)
+    private Libevent2TCPListener listenTCP(int listenfd, NetworkAddress bind_addr, void delegate(TCPConnection conn) connection_callback, TCPListenOptions options)
 	{
-		auto bind_addr = resolveHost(address, AF_UNSPEC, false);
-		bind_addr.port = port;
-
-		auto listenfd_raw = socket(bind_addr.family, SOCK_STREAM, 0);
-		// on Win64 socket() returns a 64-bit value but libevent expects an int
-		static if (typeof(listenfd_raw).max > int.max) assert(listenfd_raw <= int.max || listenfd_raw == ~0);
-		auto listenfd = cast(int)listenfd_raw;
-		socketEnforce(listenfd != -1, "Error creating listening socket");
-		int tmp_reuse = 1;
-		socketEnforce(setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &tmp_reuse, tmp_reuse.sizeof) == 0,
-			"Error enabling socket address reuse on listening socket");
-		version (linux) {
-			if (options & TCPListenOptions.reusePort) {
-				if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEPORT, &tmp_reuse, tmp_reuse.sizeof)) {
-					if (errno != EINVAL && errno != ENOPROTOOPT) {
-						socketEnforce(false, "Error enabling socket port reuse on listening socket");
-					}
-				}
-			}
-		}
-		socketEnforce(bind(listenfd, bind_addr.sockAddr, bind_addr.sockAddrLen) == 0,
-			"Error binding listening socket");
-
-		socketEnforce(listen(listenfd, 128) == 0,
-			"Error listening to listening socket");
-
 		// Set socket for non-blocking I/O
 		enforce(evutil_make_socket_nonblocking(listenfd) == 0,
-			"Error setting listening socket to non-blocking I/O.");
+                "Error setting listening socket to non-blocking I/O.");
 
 		socklen_t balen = bind_addr.sockAddrLen;
 		socketEnforce(getsockname(listenfd, bind_addr.sockAddr, &balen) == 0, "getsockname failed.");
@@ -398,7 +372,7 @@ final class Libevent2Driver : EventDriver {
 			ctx.listenEvent = event_new(evloop, handler_context.listenfd, EV_READ | EV_PERSIST, &onConnect, ctx);
 			ctx.listenOptions = handler_context.options;
 			enforce(event_add(ctx.listenEvent, null) == 0,
-				"Error scheduling connection event on the event loop.");
+                    "Error scheduling connection event on the event loop.");
 			handler_context.listener.addContext(ctx);
 		}
 
@@ -407,6 +381,44 @@ final class Libevent2Driver : EventDriver {
 		else setupConnectionHandler(cast(shared)hc);
 
 		return ret;
+    }
+
+    Libevent2TCPListener listenTCP(int fd, ushort port, void delegate(TCPConnection conn) connection_callback, string address, TCPListenOptions options)
+	{
+        auto bind_addr = resolveHost(address, AF_UNSPEC, false);
+		bind_addr.port = port;
+        return listenTCP(fd, bind_addr, connection_callback, options);
+    }
+
+	Libevent2TCPListener listenTCP(ushort port, void delegate(TCPConnection conn) connection_callback, string address, TCPListenOptions options)
+	{
+		auto bind_addr = resolveHost(address, AF_UNSPEC, false);
+		bind_addr.port = port;
+
+		auto listenfd_raw = socket(bind_addr.family, SOCK_STREAM, 0);
+		// on Win64 socket() returns a 64-bit value but libevent expects an int
+		static if (typeof(listenfd_raw).max > int.max) assert(listenfd_raw <= int.max || listenfd_raw == ~0);
+		auto listenfd = cast(int)listenfd_raw;
+		socketEnforce(listenfd != -1, "Error creating listening socket");
+		int tmp_reuse = 1;
+		socketEnforce(setsockopt(listenfd, SOL_SOCKET, SO_REUSEADDR, &tmp_reuse, tmp_reuse.sizeof) == 0,
+			"Error enabling socket address reuse on listening socket");
+		version (linux) {
+			if (options & TCPListenOptions.reusePort) {
+				if (setsockopt(listenfd, SOL_SOCKET, SO_REUSEPORT, &tmp_reuse, tmp_reuse.sizeof)) {
+					if (errno != EINVAL && errno != ENOPROTOOPT) {
+						socketEnforce(false, "Error enabling socket port reuse on listening socket");
+					}
+				}
+			}
+		}
+		socketEnforce(bind(listenfd, bind_addr.sockAddr, bind_addr.sockAddrLen) == 0,
+			"Error binding listening socket");
+
+		socketEnforce(listen(listenfd, 128) == 0,
+			"Error listening to listening socket");
+
+		return listenTCP(listenfd, bind_addr, connection_callback, options);
 	}
 
 	Libevent2UDPConnection listenUDP(ushort port, string bind_address = "0.0.0.0")
