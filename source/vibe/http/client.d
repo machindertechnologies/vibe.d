@@ -498,6 +498,7 @@ final class HTTPClient {
 
 	private bool doRequestWithRetry(scope void delegate(HTTPClientRequest req) requester, bool confirmed_proxy_auth /* basic only */, out bool close_conn, out SysTime connected_time)
 	{
+		connected_time = Clock.currTime(UTC());
 		if (m_conn && m_conn.connected && connected_time > m_keepAliveLimit){
 			logDebug("Disconnected to avoid timeout");
 			disconnect();
@@ -509,20 +510,26 @@ final class HTTPClient {
 		// retry the request if the connection gets closed prematurely and this is a persistent request
 		bool has_body;
 		foreach (i; 0 .. is_persistent_request ? 2 : 1) {
-		 	connected_time = Clock.currTime(UTC());
-
 			close_conn = false;
-			has_body = doRequest(requester, &close_conn, false, connected_time);
+            try {
+			    has_body = doRequest(requester, &close_conn, false);
+            }
+            catch (Exception e) {
+                if (i != 1) {
+                    throw new Exception("Second attempt to send HTTP request failed.", e);
+                }
+            }
 
 			logTrace("HTTP client waiting for response");
 			if (!m_stream.empty) break;
 
 			enforce(i != 1, "Second attempt to send HTTP request failed.");
+			disconnect();
 		}
 		return has_body;
 	}
 
-	private bool doRequest(scope void delegate(HTTPClientRequest req) requester, bool* close_conn, bool confirmed_proxy_auth = false /* basic only */, SysTime connected_time = Clock.currTime(UTC()))
+	private bool doRequest(scope void delegate(HTTPClientRequest req) requester, bool* close_conn, bool confirmed_proxy_auth = false /* basic only */)
 	{
 		assert(!m_requesting, "Interleaved HTTP client requests detected!");
 		assert(!m_responding, "Interleaved HTTP client request/response detected!");
@@ -531,7 +538,7 @@ final class HTTPClient {
 		scope(exit) m_requesting = false;
 
 		if (!m_conn || !m_conn.connected) {
-			if (m_conn) m_conn.close(); // make sure all resources are freed
+			disconnect(); // make sure all resources are freed
 			if (m_settings.proxyURL.host !is null){
 
 				enum AddressType {
