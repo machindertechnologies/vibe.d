@@ -1289,7 +1289,7 @@ struct RedisReply(T = ubyte[]) {
 		assert(!ctx.hasData && ctx.initialized);
 
 		if (ctx.multi)
-			readBulk(cast(string)m_conn.conn.readLine());
+			readLine(false);
 	}
 
 	private void clearData()
@@ -1312,6 +1312,12 @@ struct RedisReply(T = ubyte[]) {
 		assert(!ctx.initialized);
 		ctx.initialized = true;
 
+		readLine(true);
+	}
+
+	private void readLine(bool allowMulti)
+	{
+		auto ctx = &m_conn.m_replyContext;
 		auto ln = cast(string)m_conn.conn.readLine();
 
 		switch (ln[0]) {
@@ -1325,6 +1331,7 @@ struct RedisReply(T = ubyte[]) {
 				readBulk(ln);
 				break;
 			case '*':
+				assert(allowMulti, "Embedded arrays not supported");
 				if (ln.startsWith("*-1")) {
 					ctx.length = 0; // TODO: make this NIL reply distinguishable from a 0-length array
 				} else {
