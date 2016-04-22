@@ -130,7 +130,7 @@ nothrow:
 
 	void free(void[] mem)
 		in {
-			assert(mem.ptr !is null, "free() called with null array.");
+			//assert(mem.ptr !is null, "free() called with null array.");
 			assert((cast(size_t)mem.ptr & alignmentMask) == 0, "misaligned pointer passed to free().");
 		}
 }
