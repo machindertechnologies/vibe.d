@@ -563,7 +563,7 @@ package nothrow extern(C)
 	// should be a nested static struct in onConnect, but that triggers an ICE in ldc2-0.14.0
 	private extern(D) struct ClientTask {
 		TCPContext* listen_ctx;
-		NetworkAddress bind_addr;
+		NetworkAddress local_addr;
 		NetworkAddress remote_addr;
 		int sockfd;
 		TCPListenOptions options;
@@ -585,7 +585,7 @@ package nothrow extern(C)
 				return;
 			}
 
-			auto client_ctx = TCPContextAlloc.alloc(drivercore, eventloop, sockfd, buf_event, bind_addr, remote_addr);
+			auto client_ctx = TCPContextAlloc.alloc(drivercore, eventloop, sockfd, buf_event, local_addr, remote_addr);
 			assert(client_ctx.event !is null, "event is null although it was just != null?");
 			bufferevent_setcb(buf_event, &onSocketRead, &onSocketWrite, &onSocketEvent, client_ctx);
 			if( bufferevent_enable(buf_event, EV_READ|EV_WRITE) ){
@@ -664,9 +664,13 @@ package nothrow extern(C)
 					break;
 				}
 
+				sockaddr_in6 local_addr;
+				addrlen = local_addr.sizeof;
+                socketEnforce(getsockname(sockfd, cast(sockaddr*)&local_addr, &addrlen) == 0);
+
 				auto task = FreeListObjectAlloc!ClientTask.alloc();
 				task.listen_ctx = ctx;
-				task.bind_addr = ctx.local_addr;
+				*cast(sockaddr_in6*)task.local_addr.sockAddr = local_addr;
 				*cast(sockaddr_in6*)task.remote_addr.sockAddr = remote_addr;
 				task.sockfd = sockfd;
 				task.options = ctx.listenOptions;
