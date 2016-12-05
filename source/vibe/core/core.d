@@ -1390,8 +1390,7 @@ private class VibeDriverCore : DriverCore {
 			extrap();
 
 			assert(() @trusted nothrow { return ctask.state; } () == Fiber.State.TERM);
-			logError("Task terminated with unhandled exception: %s", th.msg);
-			logDebug("Full error: %s", () @trusted { return th.toString().sanitize; } ());
+			logError("Task terminated with unhandled exception: %s", () @trusted { return th.toString().sanitize; } ());
 
 			// always pass Errors on
 			if (auto err = cast(Error)th) throw err;
